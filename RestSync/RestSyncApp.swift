@@ -9,9 +9,11 @@ import SwiftUI
 
 @main
 struct RestSyncApp: App {
+        // Link the AppDelegate
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RestSyncView()
         }
     }
 }
