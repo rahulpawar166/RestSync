@@ -427,7 +427,7 @@ struct BreakReminderView: View {
     
     // Function to update available break durations based on break reminder time
     private func updateAvailableBreakDuration(newTime: Int) {
-        let maxDurationInMinutes = min(newTime / 60, 61) // Limit max duration to 60 minutes
+        let maxDurationInMinutes = min(newTime / 60, 60) // Limit max duration to 60 minutes
         availableTimesInMinutesForBreakDuration = Array(stride(from: 1, to: maxDurationInMinutes, by: 1))
         
         // Ensure break duration is set to a valid value from available options

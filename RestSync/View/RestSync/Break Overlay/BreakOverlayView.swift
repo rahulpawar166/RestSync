@@ -7,7 +7,73 @@
 
 import SwiftUI
 
-// Custom window class to handle the overlay
+class BreakOverlayController {
+    private var overlayWindows: [NSWindow] = []
+    
+    func showOverlay(duration: Int, onCancel: @escaping () -> Void) {
+        guard overlayWindows.isEmpty else { return }
+        
+        // Force exit full-screen mode for the active application
+        forceExitFullScreen()
+        
+        // Small delay to ensure full-screen exit completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            self.createOverlayWindows(duration: duration, onCancel: onCancel)
+        }
+    }
+    
+    private func createOverlayWindows(duration: Int, onCancel: @escaping () -> Void) {
+        for screen in NSScreen.screens {
+            let contentView = BreakOverlayView(breakDuration: duration) {
+                self.dismissOverlay()
+                onCancel()
+            }
+            
+            let hostingView = NSHostingView(rootView: contentView)
+            let window = OverlayWindow(contentRect: screen.frame)
+            window.contentView = hostingView
+            window.setFrame(screen.frame, display: true)
+            
+            // Additional window configuration for better full-screen handling
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+            
+            // Force the window to be visible and active
+            NSApp.activate(ignoringOtherApps: true)
+            
+            overlayWindows.append(window)
+        }
+    }
+    
+    private func forceExitFullScreen() {
+        // Get the currently active application
+        let workspace = NSWorkspace.shared
+        guard let activeApp = workspace.frontmostApplication else { return }
+        
+        // Send CMD+Control+F to exit full-screen (standard macOS shortcut)
+        let source = CGEventSource(stateID: .hidSystemState)
+        
+        // Create key down events for CMD+Control+F
+        let cmdControlFDown = CGEvent(keyboardEventSource: source, virtualKey: 0x03, keyDown: true) // F key
+        cmdControlFDown?.flags = [.maskCommand, .maskControl]
+        
+        let cmdControlFUp = CGEvent(keyboardEventSource: source, virtualKey: 0x03, keyDown: false)
+        cmdControlFUp?.flags = [.maskCommand, .maskControl]
+        
+        // Post the events
+        cmdControlFDown?.postToPid(activeApp.processIdentifier)
+        cmdControlFUp?.postToPid(activeApp.processIdentifier)
+    }
+    
+    func dismissOverlay() {
+        for window in overlayWindows {
+            window.orderOut(nil)
+        }
+        overlayWindows.removeAll()
+    }
+}
+
+// Custom window class to handle the overlay with full-screen support
 class OverlayWindow: NSWindow {
     init(contentRect: NSRect) {
         super.init(
@@ -17,12 +83,38 @@ class OverlayWindow: NSWindow {
             defer: false
         )
         
-        self.level = .screenSaver
+        // Maximum window level to appear above everything, including full-screen apps
+        self.level = NSWindow.Level(Int(CGWindowLevelForKey(.maximumWindow)) + 1)
         self.backgroundColor = .clear
         self.isOpaque = false
         self.hasShadow = false
         self.ignoresMouseEvents = false
-        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        
+        // Enhanced collection behavior for full-screen compatibility
+        self.collectionBehavior = [
+            .canJoinAllSpaces,          // Appears in all spaces
+            .fullScreenAuxiliary,       // Can appear over full-screen apps
+            .fullScreenDisallowsTiling, // Prevents tiling behavior
+            .stationary                 // Stays in place during space transitions
+        ]
+        
+        // Additional properties for better visibility
+        self.hidesOnDeactivate = false  // Don't hide when app loses focus
+        self.canHide = false            // Prevent hiding
+    }
+    
+    override var canBecomeKey: Bool {
+        return true
+    }
+    
+    override var canBecomeMain: Bool {
+        return true
+    }
+    
+    override func orderFrontRegardless() {
+        super.orderFrontRegardless()
+        // Force the window to stay on top
+        self.level = NSWindow.Level(Int(CGWindowLevelForKey(.maximumWindow)) + 1)
     }
 }
 
